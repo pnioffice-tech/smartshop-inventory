@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import Scanner from './Scanner';
-import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Search, Zap, Package, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import { p2pSyncService } from '../services/p2pSyncService';
+import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Search, Zap, Package, Info, AlertCircle, CheckCircle, Smartphone, Link as LinkIcon, Copy } from 'lucide-react';
 
 interface SellerStationProps {
   inventory: Product[];
@@ -11,11 +12,12 @@ interface SellerStationProps {
   onSetStoreId: (id: string | null) => void;
 }
 
-const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInventory }) => {
+const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInventory, storeId }) => {
   const [activeTab, setActiveTab] = useState<'scan' | 'list' | 'settings'>('scan');
   const [mode, setMode] = useState<'load' | 'sell'>('load');
   const [logs, setLogs] = useState<{barcode: string, type: string, time: string}[]>([]);
   const [statusMsg, setStatusMsg] = useState<{text: string, type: 'success' | 'error'} | null>(null);
+  const [joinCode, setJoinCode] = useState('');
 
   const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
     setStatusMsg({ text, type });
@@ -38,6 +40,17 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       showStatus(`${mode === 'load' ? 'עודכן מלאי' : 'הופחת מלאי'} עבור ${barcode}`);
       return updated;
     });
+  };
+
+  const handleJoinDevice = () => {
+    if (!joinCode) return;
+    p2pSyncService.connectToPeer(
+      joinCode, 
+      (data) => onUpdateInventory(data),
+      (connected) => {
+        if (connected) showStatus('מכשירים חוברו בהצלחה!');
+      }
+    );
   };
 
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,7 +81,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
             else nextInventory.push(productData);
           }
         });
-        showStatus(`המלאי עודכן וסונכרן לכל הלשוניות`);
+        showStatus(`המלאי עודכן וסונכרן לכל המכשירים`);
         return nextInventory;
       });
     } catch (err) { showStatus("שגיאה בקריאת הקובץ", 'error'); }
@@ -95,8 +108,8 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
           <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.25em] flex items-center justify-center gap-2 transition-all ${activeTab === tab ? 'text-[#6b0f24] border-b-2 border-[#6b0f24]' : 'text-slate-300'}`}>
             {tab === 'scan' && <Search size={14} />}
             {tab === 'list' && <List size={14} />}
-            {tab === 'settings' && <Zap size={14} />}
-            {tab === 'scan' ? 'סריקה' : tab === 'list' ? 'רשימה' : 'סנכרון'}
+            {tab === 'settings' && <Smartphone size={14} />}
+            {tab === 'scan' ? 'סריקה' : tab === 'list' ? 'רשימה' : 'חיבור'}
           </button>
         ))}
       </div>
@@ -114,7 +127,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
             <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest">פעולות אחרונות</h3>
-                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" /><span className="text-[8px] font-black text-orange-600 uppercase">סנכרון מקומי חי</span></div>
+                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" /><span className="text-[8px] font-black text-orange-600 uppercase">רשת פעילה</span></div>
               </div>
               <div className="space-y-2.5">
                 {logs.length > 0 ? logs.map((log, i) => (
@@ -176,29 +189,38 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
 
         {activeTab === 'settings' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-orange-50 border border-orange-100 p-8 rounded-[3rem] text-center shadow-sm">
-              <Zap size={48} className="mx-auto text-orange-400 mb-6" />
-              <h3 className="text-xl font-black text-slate-900 mb-3">סנכרון מקומי (TAB Sync)</h3>
-              <p className="text-slate-500 text-xs font-bold leading-relaxed px-4">
-                המערכת משתמשת בטכנולוגיית Broadcast Channel. כל שינוי שמתבצע כאן מופיע מיד בכל הלשוניות האחרות הפתוחות על אותו מחשב.
-              </p>
-            </div>
-
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
-              <div className="flex items-center gap-4">
-                <CheckCircle className="text-emerald-500" size={20} />
-                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">ערוץ Discreet פעיל</span>
+            <div className="bg-white p-8 rounded-[3rem] border border-slate-100 text-center shadow-sm">
+              <LinkIcon size={48} className="mx-auto text-[#6b0f24] mb-6" />
+              <h3 className="text-xl font-black text-slate-900 mb-2">חיבור מכשיר נוסף</h3>
+              <p className="text-slate-400 text-xs font-bold mb-8 uppercase tracking-widest">סנכרון רשת פרטי ללא ענן</p>
+              
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 mb-10 group relative">
+                <span className="text-xs font-black text-slate-400 block mb-2 uppercase tracking-widest">הקוד של המכשיר הזה:</span>
+                <div className="flex items-center justify-center gap-3">
+                   <span className="text-3xl font-black text-[#6b0f24] font-mono tracking-widest uppercase">{storeId}</span>
+                   <button onClick={() => { navigator.clipboard.writeText(storeId || ''); showStatus('הקוד הועתק'); }} className="p-2 text-slate-300 hover:text-[#6b0f24] transition-colors"><Copy size={20} /></button>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <CheckCircle className="text-emerald-500" size={20} />
-                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">שמירה אוטומטית (Storage)</span>
+
+              <div className="space-y-4">
+                <input 
+                  type="text" 
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  placeholder="הזיני קוד ממכשיר אחר..." 
+                  className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-[1.5rem] text-center font-black text-lg tracking-widest uppercase focus:border-[#6b0f24] transition-all"
+                />
+                <button onClick={handleJoinDevice} className="w-full py-5 bg-slate-900 text-white rounded-[1.5rem] font-black shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest">
+                  <Smartphone size={20} />
+                  חיבור למכשיר
+                </button>
               </div>
             </div>
 
             <div className="bg-[#6b0f24]/5 border border-[#6b0f24]/10 p-6 rounded-3xl flex gap-4">
               <Info className="text-[#6b0f24] shrink-0" size={20} />
               <p className="text-[11px] font-bold text-[#6b0f24]/70 leading-relaxed">
-                אין צורך בשרת או בענן. המידע עובר ישירות בין חלונות הדפדפן שלך במהירות שיא.
+                שיטה זו יוצרת ערוץ תקשורת ישיר בין המכשירים באותה רשת. כל סריקה תופיע מיידית בשני הצדדים.
               </p>
             </div>
           </div>
