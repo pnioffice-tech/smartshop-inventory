@@ -5,7 +5,7 @@ import { INITIAL_INVENTORY } from './constants';
 import CustomerStation from './components/CustomerStation';
 import SellerStation from './components/SellerStation';
 import { cloudService } from './services/cloudService';
-import { Package, Layers, Cloud, CloudOff, RefreshCw, Lock, Delete, ChevronLeft, Wifi } from 'lucide-react';
+import { Package, Layers, Cloud, CloudOff, RefreshCw, Lock, Delete, ChevronLeft, Wifi, Circle } from 'lucide-react';
 
 const SELLER_PASSWORD = "1234"; 
 const LOGO_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTDzUw-18RMVjL-UmOtlBAwkTiTV62-8Yysbw&s";
@@ -26,29 +26,28 @@ const App: React.FC = () => {
   const [storeId, setStoreId] = useState<string | null>(() => typeof window !== 'undefined' ? localStorage.getItem('discreet_store_id') : null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [inventory, setInventory] = useState<Product[]>(getInitialInventory());
-  const [highlight, setHighlight] = useState(false);
 
   const fetchLatest = useCallback(async (id: string) => {
     setIsSyncing(true);
     try {
       const data = await cloudService.fetchStore(id);
-      if (data && data.length > 0) {
-        setInventory(data);
-      }
+      // We set inventory even if empty to allow syncing deletions
+      setInventory(data);
     } catch (e) {
-      console.error(e);
+      console.error("Fetch error:", e);
     } finally {
       setIsSyncing(false);
     }
   }, []);
 
-  // Real-time Supabase Subscription
+  // Real-time Supabase Subscription for multi-device sync
   useEffect(() => {
     if (!storeId) return;
 
     fetchLatest(storeId);
 
     const subscription = cloudService.subscribeToChanges(storeId, () => {
+      console.log("Real-time update received");
       fetchLatest(storeId);
     });
 
@@ -57,18 +56,25 @@ const App: React.FC = () => {
     };
   }, [storeId, fetchLatest]);
 
+  // Persistent Local Storage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
     }
   }, [inventory]);
 
+  // Centralized Inventory Updater
   const handleUpdateInventory = useCallback((updated: Product[] | ((prev: Product[]) => Product[])) => {
     setInventory(prev => {
       const next = typeof updated === 'function' ? updated(prev) : updated;
+      
+      // Auto-sync to cloud if connected
       if (storeId) {
-        cloudService.updateStore(storeId, next).catch(console.error);
+        cloudService.updateStore(storeId, next).catch(err => {
+          console.error("Cloud auto-sync failed:", err);
+        });
       }
+      
       return next;
     });
   }, [storeId]);
@@ -101,15 +107,15 @@ const App: React.FC = () => {
         <div className="absolute inset-0 z-[100] bg-[#faf9f6] flex flex-col animate-in fade-in duration-500">
           <div className="p-8">
             <button onClick={() => setShowAuthModal(false)} className="flex items-center gap-2 text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">
-              <ChevronLeft size={16} /> Close
+              <ChevronLeft size={16} /> סגור
             </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center px-12">
             <div className="w-20 h-20 bg-white border border-slate-100 text-[#6b0f24] rounded-full flex items-center justify-center mb-8 shadow-sm">
               <Lock size={28} strokeWidth={1.5} />
             </div>
-            <h2 className="text-2xl font-light text-slate-900 mb-2 tracking-tight">Staff Access</h2>
-            <p className="text-slate-400 text-xs mb-12 tracking-widest uppercase">Enter Secure PIN</p>
+            <h2 className="text-2xl font-light text-slate-900 mb-2 tracking-tight">כניסת צוות</h2>
+            <p className="text-slate-400 text-xs mb-12 tracking-widest uppercase">הקישי קוד סודי</p>
             <div className="flex gap-6 mb-16">
               {[0, 1, 2, 3].map(i => (
                 <div key={i} className={`w-3 h-3 rounded-full border border-[#6b0f24]/20 transition-all duration-500 ${pin.length > i ? 'bg-[#6b0f24] border-[#6b0f24] scale-125' : 'bg-transparent'}`} />
@@ -127,38 +133,51 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 px-6 py-6">
-        <div className="flex flex-col gap-6">
+      <header className="bg-white border-b border-slate-50 sticky top-0 z-50 px-6 py-4">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <img src={LOGO_URL} alt="Discreet" className="h-10 w-auto object-contain grayscale brightness-0" />
-              <div className="flex items-center gap-1.5 mt-2">
+            {/* Logo Section - Top Right in RTL */}
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                <img 
+                  src={LOGO_URL} 
+                  alt="Discreet" 
+                  className="h-9 w-auto object-contain transition-all duration-500 hover:scale-105" 
+                  style={{ filter: 'contrast(1.1) brightness(0.9) sepia(0.2)' }}
+                />
+              </div>
+              <div className="h-6 w-[1px] bg-slate-100 hidden sm:block"></div>
+              <div className="flex flex-col">
                 {storeId ? (
-                  <span className="text-[8px] font-bold text-emerald-600 flex items-center gap-1 tracking-widest uppercase">
-                    <Wifi size={10} className={isSyncing ? "animate-pulse" : ""} /> {storeId}
-                  </span>
+                  <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[8px] font-black text-emerald-700 uppercase tracking-widest">{storeId}</span>
+                  </div>
                 ) : (
-                  <span className="text-[8px] font-bold text-slate-300 flex items-center gap-0.5 uppercase tracking-widest">
-                    <CloudOff size={10} /> Local Mode
+                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1">
+                    <CloudOff size={10} /> מצב מקומי
                   </span>
                 )}
               </div>
             </div>
             
-            <nav className="flex items-center gap-1 bg-slate-50 p-1 rounded-full border border-slate-100">
-              <button onClick={() => setView('customer')} className={`px-5 py-2 rounded-full text-[10px] font-bold transition-all uppercase tracking-[0.15em] ${view === 'customer' ? 'bg-white text-[#6b0f24] shadow-sm border border-[#6b0f24]/5' : 'text-slate-400'}`}>Customer</button>
-              <button onClick={() => (isAuth ? setView('seller') : setShowAuthModal(true))} className={`px-5 py-2 rounded-full text-[10px] font-bold transition-all uppercase tracking-[0.15em] ${view === 'seller' ? 'bg-white text-[#6b0f24] shadow-sm border border-[#6b0f24]/5' : 'text-slate-400'}`}>Staff</button>
+            <nav className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+              <button onClick={() => setView('customer')} className={`px-4 py-1.5 rounded-lg text-[9px] font-bold transition-all uppercase tracking-wider ${view === 'customer' ? 'bg-white text-[#6b0f24] shadow-sm border border-[#6b0f24]/5' : 'text-slate-400'}`}>לקוחה</button>
+              <button onClick={() => (isAuth ? setView('seller') : setShowAuthModal(true))} className={`px-4 py-1.5 rounded-lg text-[9px] font-bold transition-all uppercase tracking-wider ${view === 'seller' ? 'bg-white text-[#6b0f24] shadow-sm border border-[#6b0f24]/5' : 'text-slate-400'}`}>ניהול</button>
             </nav>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className={`flex flex-col gap-1 p-4 rounded-2xl transition-all duration-700 bg-[#faf9f6] border border-slate-100`}>
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">Inventory</span>
-              <span className="text-xl font-light tracking-tight text-slate-900">{stats.totalUnits} <span className="text-[10px] font-bold opacity-30">PCS</span></span>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100 transition-all duration-300">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">סה"כ פריטים</span>
+              <span className="text-lg font-light tracking-tight text-slate-900 transition-all">{stats.totalUnits} <span className="text-[9px] font-bold opacity-30">יח'</span></span>
             </div>
-            <div className={`flex flex-col gap-1 p-4 rounded-2xl transition-all duration-700 bg-[#faf9f6] border border-slate-100`}>
-              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em]">Collections</span>
-              <span className="text-xl font-light tracking-tight text-slate-900">{stats.uniqueItems} <span className="text-[10px] font-bold opacity-30">SKU</span></span>
+            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100 transition-all duration-300">
+              <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">דגמים במלאי</span>
+              <span className="text-lg font-light tracking-tight text-slate-900 transition-all">{stats.uniqueItems} <span className="text-[9px] font-bold opacity-30">SKU</span></span>
             </div>
           </div>
         </div>
@@ -183,10 +202,9 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <footer className="bg-white py-8 px-6 text-center">
-        <div className="w-12 h-[1px] bg-[#6b0f24]/10 mx-auto mb-4"></div>
-        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-[0.4em]">
-          Discreet • 2025 Boutique Terminal
+      <footer className="bg-white py-6 px-6 text-center border-t border-slate-50">
+        <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">
+          Discreet • Boutique terminal
         </p>
       </footer>
     </div>
