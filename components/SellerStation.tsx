@@ -2,9 +2,7 @@
 import React, { useState } from 'react';
 import { Product } from '../types';
 import Scanner from './Scanner';
-import { cloudService } from '../services/cloudService';
-// Fix: Added missing 'Package' icon to the imports from lucide-react.
-import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Database, CheckCircle, AlertCircle, Search, Cloud, Share2, Copy, RefreshCw, LogIn, Info, Globe, Package } from 'lucide-react';
+import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Search, Zap, Package, Info, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface SellerStationProps {
   inventory: Product[];
@@ -13,13 +11,11 @@ interface SellerStationProps {
   onSetStoreId: (id: string | null) => void;
 }
 
-const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInventory, storeId, onSetStoreId }) => {
-  const [activeTab, setActiveTab] = useState<'scan' | 'list' | 'cloud'>('scan');
+const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInventory }) => {
+  const [activeTab, setActiveTab] = useState<'scan' | 'list' | 'settings'>('scan');
   const [mode, setMode] = useState<'load' | 'sell'>('load');
   const [logs, setLogs] = useState<{barcode: string, type: string, time: string}[]>([]);
   const [statusMsg, setStatusMsg] = useState<{text: string, type: 'success' | 'error'} | null>(null);
-  const [isCloudLoading, setIsCloudLoading] = useState(false);
-  const [inputStoreId, setInputStoreId] = useState('');
 
   const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
     setStatusMsg({ text, type });
@@ -56,6 +52,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
       if (lines.length < 2) { showStatus("קובץ לא תקין", 'error'); return; }
       const delimiter = lines[0].includes(';') ? ';' : ',';
+      
       onUpdateInventory((prev) => {
         const nextInventory = [...prev];
         lines.slice(1).forEach((line) => {
@@ -71,7 +68,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
             else nextInventory.push(productData);
           }
         });
-        showStatus(`נתוני המלאי עודכנו בהצלחה`);
+        showStatus(`המלאי עודכן וסונכרן לכל הלשוניות`);
         return nextInventory;
       });
     } catch (err) { showStatus("שגיאה בקריאת הקובץ", 'error'); }
@@ -91,39 +88,15 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
     link.click();
   };
 
-  const handleCreateCloudStore = async () => {
-    setIsCloudLoading(true);
-    try {
-      const newId = await cloudService.createStore(inventory);
-      onSetStoreId(newId);
-      showStatus('חנות ענן נוצרה בהצלחה!');
-      setActiveTab('scan');
-    } catch (e: any) { showStatus(e.message, 'error'); }
-    finally { setIsCloudLoading(false); }
-  };
-
-  const handleConnectStore = async () => {
-    if (!inputStoreId) return;
-    setIsCloudLoading(true);
-    try {
-      const data = await cloudService.fetchStore(inputStoreId);
-      onUpdateInventory(data);
-      onSetStoreId(inputStoreId);
-      showStatus('מחובר לענן Discreet!');
-      setActiveTab('scan');
-    } catch (e: any) { showStatus(e.message, 'error'); }
-    finally { setIsCloudLoading(false); }
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#fdfcfb] relative">
       <div className="flex border-b border-slate-100 bg-white">
-        {(['scan', 'list', 'cloud'] as const).map(tab => (
+        {(['scan', 'list', 'settings'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-5 text-[10px] font-black uppercase tracking-[0.25em] flex items-center justify-center gap-2 transition-all ${activeTab === tab ? 'text-[#6b0f24] border-b-2 border-[#6b0f24]' : 'text-slate-300'}`}>
             {tab === 'scan' && <Search size={14} />}
             {tab === 'list' && <List size={14} />}
-            {tab === 'cloud' && <Cloud size={14} />}
-            {tab === 'scan' ? 'סריקה' : tab === 'list' ? 'רשימה' : 'ענן'}
+            {tab === 'settings' && <Zap size={14} />}
+            {tab === 'scan' ? 'סריקה' : tab === 'list' ? 'רשימה' : 'סנכרון'}
           </button>
         ))}
       </div>
@@ -141,7 +114,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
             <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
               <div className="flex justify-between items-center mb-5">
                 <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-widest">פעולות אחרונות</h3>
-                {storeId && <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /><span className="text-[8px] font-black text-emerald-600 uppercase">מסונכרן</span></div>}
+                <div className="flex items-center gap-1.5"><div className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" /><span className="text-[8px] font-black text-orange-600 uppercase">סנכרון מקומי חי</span></div>
               </div>
               <div className="space-y-2.5">
                 {logs.length > 0 ? logs.map((log, i) => (
@@ -201,52 +174,33 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
           </div>
         )}
 
-        {activeTab === 'cloud' && (
+        {activeTab === 'settings' && (
           <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="bg-emerald-50 border border-emerald-100 p-5 rounded-3xl flex gap-4">
-              <Globe className="text-emerald-600 shrink-0" size={20} />
-              <div className="flex flex-col gap-1">
-                <span className="font-black text-[10px] text-emerald-800 uppercase tracking-widest">סינכרון אוטומטי פעיל</span>
-                <p className="text-[11px] font-bold text-emerald-700/80 leading-relaxed">
-                  כל שינוי במלאי מעדכן מיידית את כל המכשירים המחוברים לאותו קוד חנות. אין צורך בלחיצה ידנית לשמירה.
-                </p>
+            <div className="bg-orange-50 border border-orange-100 p-8 rounded-[3rem] text-center shadow-sm">
+              <Zap size={48} className="mx-auto text-orange-400 mb-6" />
+              <h3 className="text-xl font-black text-slate-900 mb-3">סנכרון מקומי (TAB Sync)</h3>
+              <p className="text-slate-500 text-xs font-bold leading-relaxed px-4">
+                המערכת משתמשת בטכנולוגיית Broadcast Channel. כל שינוי שמתבצע כאן מופיע מיד בכל הלשוניות האחרות הפתוחות על אותו מחשב.
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-3xl border border-slate-100 space-y-4">
+              <div className="flex items-center gap-4">
+                <CheckCircle className="text-emerald-500" size={20} />
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">ערוץ Discreet פעיל</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <CheckCircle className="text-emerald-500" size={20} />
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wide">שמירה אוטומטית (Storage)</span>
               </div>
             </div>
 
-            {!storeId ? (
-              <div className="space-y-6">
-                <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm text-center">
-                  <Cloud size={48} className="mx-auto text-[#f7edf0] mb-5" />
-                  <h3 className="text-xl font-black text-slate-900 mb-2">סינכרון ענן Discreet</h3>
-                  <p className="text-slate-400 text-xs font-bold mb-8">חברי מכשירים נוספים ונהלי מלאי בזמן אמת</p>
-                  <button onClick={handleCreateCloudStore} disabled={isCloudLoading} className="w-full py-5 bg-[#6b0f24] text-white rounded-[2rem] font-black shadow-xl flex items-center justify-center gap-3 active:scale-95 transition-all uppercase tracking-widest">{isCloudLoading ? <RefreshCw size={20} className="animate-spin" /> : <Share2 size={20} />}יצירת חנות ענן</button>
-                </div>
-                <div className="bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm">
-                  <input type="text" value={inputStoreId} onChange={(e) => setInputStoreId(e.target.value)} placeholder="הזיני קוד חנות קיים..." className="w-full p-5 bg-slate-50 border-2 border-slate-100 rounded-3xl text-center font-black mb-5 tracking-widest uppercase focus:border-[#6b0f24] transition-all" />
-                  <button onClick={handleConnectStore} disabled={isCloudLoading || !inputStoreId} className="w-full py-5 bg-slate-900 text-white rounded-3xl font-black flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50 uppercase tracking-widest"><LogIn size={20} /> התחברות לקוד</button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="bg-white p-10 rounded-[3rem] border border-emerald-50 shadow-sm text-center">
-                  <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6"><CheckCircle size={32} /></div>
-                  <h3 className="text-lg font-black text-slate-900 mb-1">מחובר לענן</h3>
-                  <p className="text-slate-400 text-xs font-bold mb-6">מכשירים אחרים יכולים להתחבר בעזרת הקוד:</p>
-                  <div className="flex items-center justify-center gap-3 bg-slate-50 p-6 rounded-3xl border border-slate-100">
-                    <span className="text-2xl font-black text-[#6b0f24] font-mono tracking-[0.2em]">{storeId}</span>
-                    <button onClick={() => { navigator.clipboard.writeText(storeId); showStatus('הקוד הועתק'); }} className="p-2 text-slate-300 hover:text-[#6b0f24] transition-colors"><Copy size={18} /></button>
-                  </div>
-                </div>
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">מצב סנכרון: חי</span>
-                  </div>
-                  <button onClick={() => onSetStoreId(storeId)} className="text-slate-300 hover:text-[#6b0f24] transition-colors"><RefreshCw size={16} /></button>
-                </div>
-                <button onClick={() => { if(confirm('להתנתק מחנות הענן? הנתונים יישארו שמורים מקומית.')) onSetStoreId(null); }} className="w-full py-5 text-slate-300 font-black uppercase tracking-widest hover:text-rose-500 transition-colors">ניתוק חנות ענן</button>
-              </div>
-            )}
+            <div className="bg-[#6b0f24]/5 border border-[#6b0f24]/10 p-6 rounded-3xl flex gap-4">
+              <Info className="text-[#6b0f24] shrink-0" size={20} />
+              <p className="text-[11px] font-bold text-[#6b0f24]/70 leading-relaxed">
+                אין צורך בשרת או בענן. המידע עובר ישירות בין חלונות הדפדפן שלך במהירות שיא.
+              </p>
+            </div>
           </div>
         )}
       </div>

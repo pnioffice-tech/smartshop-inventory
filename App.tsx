@@ -4,12 +4,12 @@ import { AppView, Product } from './types';
 import { INITIAL_INVENTORY } from './constants';
 import CustomerStation from './components/CustomerStation';
 import SellerStation from './components/SellerStation';
-import { cloudService } from './services/cloudService';
-import { Package, Layers, Cloud, CloudOff, RefreshCw, Lock, Delete, ChevronLeft, Wifi, Circle } from 'lucide-react';
+import { localSyncService } from './services/localSyncService';
+import { Package, CloudOff, Lock, Delete, ChevronLeft, Wifi, Zap } from 'lucide-react';
 
 const SELLER_PASSWORD = "1234"; 
 const LOGO_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTDzUw-18RMVjL-UmOtlBAwkTiTV62-8Yysbw&s";
-const STORAGE_KEY = 'discreet_inventory_v8';
+const STORAGE_KEY = 'discreet_inventory_v9';
 
 const App: React.FC = () => {
   const getInitialInventory = () => {
@@ -22,62 +22,36 @@ const App: React.FC = () => {
   const [isAuth, setIsAuth] = useState(false);
   const [pin, setPin] = useState("");
   const [showAuthModal, setShowAuthModal] = useState(false);
-  
-  const [storeId, setStoreId] = useState<string | null>(() => typeof window !== 'undefined' ? localStorage.getItem('discreet_store_id') : null);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [inventory, setInventory] = useState<Product[]>(getInitialInventory());
 
-  const fetchLatest = useCallback(async (id: string) => {
-    setIsSyncing(true);
-    try {
-      const data = await cloudService.fetchStore(id);
-      // We set inventory even if empty to allow syncing deletions
-      setInventory(data);
-    } catch (e) {
-      console.error("Fetch error:", e);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, []);
-
-  // Real-time Supabase Subscription for multi-device sync
+  // Listen for local sync updates from other tabs
   useEffect(() => {
-    if (!storeId) return;
-
-    fetchLatest(storeId);
-
-    const subscription = cloudService.subscribeToChanges(storeId, () => {
-      console.log("Real-time update received");
-      fetchLatest(storeId);
+    const unsubscribe = localSyncService.subscribe((remoteInventory) => {
+      console.log("Instant local sync update received");
+      setInventory(remoteInventory);
     });
 
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [storeId, fetchLatest]);
+    return () => unsubscribe();
+  }, []);
 
-  // Persistent Local Storage
+  // Update localStorage whenever inventory changes
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(inventory));
     }
   }, [inventory]);
 
-  // Centralized Inventory Updater
+  // Centralized Inventory Updater with Local Broadcast
   const handleUpdateInventory = useCallback((updated: Product[] | ((prev: Product[]) => Product[])) => {
     setInventory(prev => {
       const next = typeof updated === 'function' ? updated(prev) : updated;
       
-      // Auto-sync to cloud if connected
-      if (storeId) {
-        cloudService.updateStore(storeId, next).catch(err => {
-          console.error("Cloud auto-sync failed:", err);
-        });
-      }
+      // Broadcast to other tabs immediately
+      localSyncService.broadcastUpdate(next);
       
       return next;
     });
-  }, [storeId]);
+  }, []);
 
   const stats = useMemo(() => {
     const totalUnits = inventory.reduce((sum, item) => sum + (item.stock || 0), 0);
@@ -136,31 +110,21 @@ const App: React.FC = () => {
       <header className="bg-white border-b border-slate-50 sticky top-0 z-50 px-6 py-4">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            {/* Logo Section - Top Right in RTL */}
             <div className="flex items-center gap-3">
               <div className="relative group">
                 <img 
                   src={LOGO_URL} 
                   alt="Discreet" 
-                  className="h-9 w-auto object-contain transition-all duration-500 hover:scale-105" 
+                  className="h-9 w-auto object-contain" 
                   style={{ filter: 'contrast(1.1) brightness(0.9) sepia(0.2)' }}
                 />
               </div>
               <div className="h-6 w-[1px] bg-slate-100 hidden sm:block"></div>
               <div className="flex flex-col">
-                {storeId ? (
-                  <div className="flex items-center gap-1.5 bg-emerald-50 px-2 py-0.5 rounded-full">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-[8px] font-black text-emerald-700 uppercase tracking-widest">{storeId}</span>
-                  </div>
-                ) : (
-                  <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                    <CloudOff size={10} /> מצב מקומי
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">
+                  <Zap size={10} className="text-orange-500 fill-orange-500" />
+                  <span className="text-[8px] font-black text-orange-700 uppercase tracking-widest">סנכרון מקומי פעיל</span>
+                </div>
               </div>
             </div>
             
@@ -171,13 +135,13 @@ const App: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100 transition-all duration-300">
+            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100">
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">סה"כ פריטים</span>
-              <span className="text-lg font-light tracking-tight text-slate-900 transition-all">{stats.totalUnits} <span className="text-[9px] font-bold opacity-30">יח'</span></span>
+              <span className="text-lg font-light tracking-tight text-slate-900">{stats.totalUnits} <span className="text-[9px] font-bold opacity-30">יח'</span></span>
             </div>
-            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100 transition-all duration-300">
+            <div className="flex flex-col gap-0.5 p-3 rounded-xl bg-[#faf9f6] border border-slate-100">
               <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">דגמים במלאי</span>
-              <span className="text-lg font-light tracking-tight text-slate-900 transition-all">{stats.uniqueItems} <span className="text-[9px] font-bold opacity-30">SKU</span></span>
+              <span className="text-lg font-light tracking-tight text-slate-900">{stats.uniqueItems} <span className="text-[9px] font-bold opacity-30">SKU</span></span>
             </div>
           </div>
         </div>
@@ -190,21 +154,15 @@ const App: React.FC = () => {
           <SellerStation 
             inventory={inventory} 
             onUpdateInventory={handleUpdateInventory} 
-            storeId={storeId}
-            onSetStoreId={(id) => {
-              setStoreId(id);
-              if (typeof window !== 'undefined') {
-                if (id) localStorage.setItem('discreet_store_id', id);
-                else localStorage.removeItem('discreet_store_id');
-              }
-            }}
+            storeId={null}
+            onSetStoreId={() => {}}
           />
         )}
       </main>
 
       <footer className="bg-white py-6 px-6 text-center border-t border-slate-50">
         <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">
-          Discreet • Boutique terminal
+          Discreet • Local Terminal • Instant Sync
         </p>
       </footer>
     </div>
