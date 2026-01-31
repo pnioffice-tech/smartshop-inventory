@@ -1,0 +1,5 @@
+{
+  "name": "SmartShop Inventory Station",
+  "description": "A dual-station inventory system. A Customer Station for independent item availability checks and a Seller Station for managing stock.",
+  "requestFramePermissions": []
+}
