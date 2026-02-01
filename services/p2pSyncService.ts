@@ -4,33 +4,46 @@ import { Product } from '../types';
 
 let peer: Peer | null = null;
 let activeConnections: DataConnection[] = [];
+let currentInventory: Product[] = [];
 
 export const p2pSyncService = {
-  init: (onDataReceived: (data: Product[]) => void, onConnectionChange: (connected: boolean) => void): string => {
-    // Generate a short readable ID
+  init: (
+    onDataReceived: (data: Product[]) => void, 
+    onConnectionChange: (connected: boolean) => void,
+    onIdReady: (id: string) => void,
+    getLatestInventory: () => Product[]
+  ) => {
     const shortId = `discreet-${Math.floor(1000 + Math.random() * 9000)}`;
-    
     peer = new Peer(shortId);
 
     peer.on('open', (id) => {
-      console.log('My peer ID is: ' + id);
+      console.log('Peer ID ready:', id);
+      onIdReady(id);
     });
 
     peer.on('connection', (conn) => {
-      console.log('Incoming connection...');
-      setupConnection(conn, onDataReceived, onConnectionChange);
+      setupConnection(conn, onDataReceived, onConnectionChange, getLatestInventory);
     });
 
-    return shortId;
+    peer.on('error', (err) => {
+      console.error('PeerJS Error:', err);
+      onConnectionChange(false);
+    });
   },
 
-  connectToPeer: (targetId: string, onDataReceived: (data: Product[]) => void, onConnectionChange: (connected: boolean) => void) => {
-    if (!peer) return;
+  connectToPeer: (
+    targetId: string, 
+    onDataReceived: (data: Product[]) => void, 
+    onConnectionChange: (connected: boolean) => void,
+    getLatestInventory: () => Product[]
+  ) => {
+    if (!peer || !targetId) return;
     const conn = peer.connect(targetId);
-    setupConnection(conn, onDataReceived, onConnectionChange);
+    setupConnection(conn, onDataReceived, onConnectionChange, getLatestInventory);
   },
 
   broadcastUpdate: (inventory: Product[]) => {
+    currentInventory = inventory;
     activeConnections.forEach(conn => {
       if (conn.open) {
         conn.send({ type: 'INVENTORY_UPDATE', payload: inventory });
@@ -45,16 +58,34 @@ export const p2pSyncService = {
   }
 };
 
-function setupConnection(conn: DataConnection, onData: (data: Product[]) => void, onStatus: (connected: boolean) => void) {
+function setupConnection(
+  conn: DataConnection, 
+  onData: (data: Product[]) => void, 
+  onStatus: (connected: boolean) => void,
+  getLatestInventory: () => Product[]
+) {
   conn.on('open', () => {
-    console.log('Connected to peer');
     activeConnections.push(conn);
     onStatus(true);
+    
+    // Request initial data from the peer we just connected to
+    conn.send({ type: 'REQUEST_SYNC' });
+    
+    // Also send our current data to them immediately
+    const data = getLatestInventory();
+    if (data.length > 0) {
+      conn.send({ type: 'INVENTORY_UPDATE', payload: data });
+    }
   });
 
   conn.on('data', (data: any) => {
-    if (data && data.type === 'INVENTORY_UPDATE') {
+    if (!data) return;
+    
+    if (data.type === 'INVENTORY_UPDATE') {
       onData(data.payload);
+    } else if (data.type === 'REQUEST_SYNC') {
+      const current = getLatestInventory();
+      conn.send({ type: 'INVENTORY_UPDATE', payload: current });
     }
   });
 
