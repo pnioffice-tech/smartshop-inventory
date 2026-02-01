@@ -8,7 +8,7 @@ interface ScannerProps {
   autoFocusEnabled?: boolean;
 }
 
-const Scanner: React.FC<ScannerProps> = ({ onScan, placeholder = "סרוק ברקוד...", autoFocusEnabled = true }) => {
+const Scanner: React.FC<ScannerProps> = ({ onScan, placeholder = "סרקי ברקוד...", autoFocusEnabled = true }) => {
   const [manualId, setManualId] = useState('');
   const [lastScanned, setLastScanned] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -37,30 +37,30 @@ const Scanner: React.FC<ScannerProps> = ({ onScan, placeholder = "סרוק בר�
   };
 
   return (
-    <div className="flex flex-col items-center w-full max-w-sm mx-auto" onClick={handleContainerClick}>
-      <div className="relative w-full aspect-square bg-white rounded-[3rem] overflow-hidden mb-6 border border-slate-100 shadow-2xl flex items-center justify-center cursor-pointer">
-        <div className="relative flex items-center justify-center w-full h-full p-12">
-          <div className={`absolute inset-0 bg-[#fdfcfb] transition-all duration-300 ${lastScanned ? 'bg-emerald-50' : ''}`} />
+    <div className="flex flex-col items-center w-full max-w-xl mx-auto" onClick={handleContainerClick}>
+      <div className="relative w-full aspect-square bg-white rounded-[5rem] overflow-hidden mb-10 border-4 border-slate-100 shadow-[0_40px_80px_rgba(0,0,0,0.1)] flex items-center justify-center cursor-pointer group hover:border-[#6b0f24]/30 transition-all">
+        <div className="relative flex items-center justify-center w-full h-full p-20">
+          <div className={`absolute inset-0 bg-[#fdfcfb] transition-all duration-300 ${lastScanned ? 'bg-emerald-50' : 'group-hover:bg-[#fcf8f9]'}`} />
           
-          <div className="relative flex flex-col items-center gap-4 text-[#6b0f24] transition-all duration-300">
+          <div className="relative flex flex-col items-center gap-8 text-[#6b0f24] transition-all duration-300">
             {lastScanned ? (
-              <CheckCircle2 size={80} className="text-emerald-500 animate-in zoom-in" />
+              <CheckCircle2 size={180} className="text-emerald-500 animate-in zoom-in" />
             ) : (
-              <div className="flex flex-col items-center opacity-80">
-                <ScanLine size={100} strokeWidth={1} className="text-[#6b0f24]" />
-                <div className="flex gap-3 mt-4">
-                  <Barcode size={24} strokeWidth={1} className="opacity-30" />
-                  <QrCode size={24} strokeWidth={1} className="opacity-30" />
+              <div className="flex flex-col items-center opacity-90">
+                <ScanLine size={180} strokeWidth={1.5} className="text-[#6b0f24]" />
+                <div className="flex gap-8 mt-10">
+                  <Barcode size={48} strokeWidth={2} className="opacity-30" />
+                  <QrCode size={48} strokeWidth={2} className="opacity-30" />
                 </div>
               </div>
             )}
           </div>
 
-          <div className="absolute inset-x-12 top-1/2 -translate-y-1/2 h-0.5 bg-[#6b0f24] shadow-[0_0_20px_rgba(107,15,36,0.6)] animate-[scan-v_4s_infinite_ease-in-out]" />
+          <div className="absolute inset-x-16 top-1/2 -translate-y-1/2 h-2 bg-[#6b0f24] shadow-[0_0_40px_rgba(107,15,36,0.8)] animate-[scan-v_4s_infinite_ease-in-out] rounded-full" />
         </div>
       </div>
 
-      <div className="w-full px-2">
+      <div className="w-full px-4">
         <form onSubmit={handleManualSubmit} className="relative">
           <input
             ref={inputRef}
@@ -68,12 +68,12 @@ const Scanner: React.FC<ScannerProps> = ({ onScan, placeholder = "סרוק בר�
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
             placeholder={placeholder}
-            className="w-full px-4 py-5 bg-white border border-slate-200 rounded-2xl text-xl font-black text-center shadow-lg focus:border-[#6b0f24] transition-all placeholder:text-slate-300"
+            className="w-full px-10 py-8 bg-white border-4 border-slate-200 rounded-[2.5rem] text-5xl font-black text-center shadow-2xl focus:border-[#6b0f24] transition-all placeholder:text-slate-300 text-slate-800"
             autoComplete="off"
           />
-          <div className="mt-4 text-center">
-             <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-               {autoFocusEnabled ? 'Ready for Scan' : 'Touch to Type'}
+          <div className="mt-8 text-center">
+             <span className="text-lg font-black text-slate-400 uppercase tracking-[0.4em]">
+               {autoFocusEnabled ? 'מערכת מוכנה לסריקה' : 'לחצי כאן להקלדה ידנית'}
              </span>
           </div>
         </form>
@@ -81,9 +81,9 @@ const Scanner: React.FC<ScannerProps> = ({ onScan, placeholder = "סרוק בר�
 
       <style>{`
         @keyframes scan-v {
-          0%, 100% { transform: translateY(-120px); opacity: 0; }
+          0%, 100% { transform: translateY(-180px); opacity: 0; }
           20%, 80% { opacity: 1; }
-          50% { transform: translateY(120px); }
+          50% { transform: translateY(180px); }
         }
       `}</style>
     </div>
