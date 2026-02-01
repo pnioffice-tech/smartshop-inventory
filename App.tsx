@@ -91,7 +91,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-[#faf9f6] font-['Assistant'] w-full overflow-hidden relative" dir="rtl">
+    <div className="min-h-screen flex flex-col bg-[#faf9f6] font-['Assistant'] w-full overflow-x-hidden relative" dir="rtl">
       
       {showAuthModal && (
         <div className="absolute inset-0 z-[100] bg-[#faf9f6] flex flex-col animate-in fade-in duration-500">
@@ -123,54 +123,66 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Header hidden in Customer Mode if you want even more space, but kept for Logo/Status */}
-      <header className={`bg-white border-b-2 border-slate-100 z-50 px-6 ${view === 'customer' ? 'py-4' : 'py-6'} shadow-sm shrink-0`}>
-        <div className="max-w-full mx-auto flex items-center justify-between gap-6">
-          <div className="flex items-center gap-6">
-            <img 
-              src={LOGO_URL} 
-              alt="Discreet" 
-              className={`${view === 'customer' ? 'h-10' : 'h-14'} w-auto object-contain transition-all`} 
-              style={{ filter: 'contrast(1.2)' }}
-            />
-            <div className="h-10 w-[3px] bg-slate-100 hidden md:block"></div>
-            <div className={`flex items-center gap-3 px-6 py-2 rounded-full border-2 ${isP2pConnected ? 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
-              {isP2pConnected ? <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" /> : <Smartphone size={16} />}
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                {isP2pConnected ? 'סנכרון פעיל' : 'ממתין לחיבור'}
-              </span>
+      <header className="bg-white border-b-2 border-slate-100 sticky top-0 z-50 px-6 py-6 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col gap-6">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-6">
+              <img 
+                src={LOGO_URL} 
+                alt="Discreet" 
+                className="h-14 w-auto object-contain" 
+                style={{ filter: 'contrast(1.2)' }}
+              />
+              <div className="h-10 w-[3px] bg-slate-100 hidden md:block"></div>
+              <div className={`flex items-center gap-3 px-6 py-2.5 rounded-full border-4 ${isP2pConnected ? 'bg-emerald-50 border-emerald-200 text-emerald-800 shadow-sm' : 'bg-slate-50 border-slate-200 text-slate-400'}`}>
+                {isP2pConnected ? <div className="w-4 h-4 rounded-full bg-emerald-500 animate-pulse" /> : <Smartphone size={20} />}
+                <span className="text-xs font-black uppercase tracking-widest">
+                  {isP2pConnected ? 'סנכרון פעיל' : 'ממתין לחיבור'}
+                </span>
+              </div>
             </div>
+            
+            <nav className="flex items-center gap-3 bg-slate-100 p-2 rounded-3xl border-2 border-slate-200">
+              <button onClick={() => setView('customer')} className={`px-8 py-3.5 rounded-2xl text-sm font-black transition-all uppercase tracking-widest ${view === 'customer' ? 'bg-white text-[#6b0f24] shadow-xl border-2 border-[#6b0f24]/10' : 'text-slate-500'}`}>לקוחה</button>
+              <button onClick={() => (isAuth ? setView('seller') : setShowAuthModal(true))} className={`px-8 py-3.5 rounded-2xl text-sm font-black transition-all uppercase tracking-widest ${view === 'seller' ? 'bg-white text-[#6b0f24] shadow-xl border-2 border-[#6b0f24]/10' : 'text-slate-500'}`}>ניהול</button>
+            </nav>
           </div>
-          
-          <nav className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200">
-            <button onClick={() => setView('customer')} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${view === 'customer' ? 'bg-white text-[#6b0f24] shadow-md border-2 border-[#6b0f24]/5' : 'text-slate-500'}`}>לקוחה</button>
-            <button onClick={() => (isAuth ? setView('seller') : setShowAuthModal(true))} className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all uppercase tracking-widest ${view === 'seller' ? 'bg-white text-[#6b0f24] shadow-md border-2 border-[#6b0f24]/5' : 'text-slate-500'}`}>ניהול</button>
-          </nav>
+
+          {view === 'seller' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-500">
+              <div className="flex flex-col gap-1 p-5 rounded-3xl bg-slate-50 border-2 border-slate-200 shadow-sm">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">סה"כ פריטים במערכת</span>
+                <span className="text-3xl font-black text-slate-900 leading-none">{stats.totalUnits} <span className="text-sm font-bold opacity-40">יחידות</span></span>
+              </div>
+              <div className="flex flex-col gap-1 p-5 rounded-3xl bg-slate-50 border-2 border-slate-200 shadow-sm">
+                <span className="text-xs font-black text-slate-400 uppercase tracking-widest">דגמים שונים במלאי</span>
+                <span className="text-3xl font-black text-slate-900 leading-none">{stats.uniqueItems} <span className="text-sm font-bold opacity-40">דגמים</span></span>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden w-full">
-        {view === 'customer' ? (
-          <CustomerStation inventory={inventory} />
-        ) : (
-          <div className="max-w-7xl mx-auto h-full overflow-y-auto">
+      <main className="flex-1 overflow-y-auto w-full">
+        <div className="max-w-7xl mx-auto h-full">
+          {view === 'customer' ? (
+            <CustomerStation inventory={inventory} />
+          ) : (
             <SellerStation 
               inventory={inventory} 
               onUpdateInventory={handleUpdateInventory} 
               storeId={p2pId}
               onSetStoreId={() => {}}
             />
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
-      {view === 'seller' && (
-        <footer className="bg-white py-6 px-6 text-center border-t-2 border-slate-100 shrink-0">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-[0.5em]">
-            Discreet • קוד מכשיר: {p2pId}
-          </p>
-        </footer>
-      )}
+      <footer className="bg-white py-10 px-6 text-center border-t-2 border-slate-100">
+        <p className="text-xs font-black text-slate-400 uppercase tracking-[0.5em]">
+          Discreet • מערכת סנכרון מקומית • קוד מכשיר: {p2pId}
+        </p>
+      </footer>
     </div>
   );
 };

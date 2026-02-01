@@ -82,34 +82,75 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       }
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
       if (lines.length < 2) { showStatus("הקובץ ריק או לא תקין", 'error'); return; }
+      
       const delimiter = lines[0].includes(';') ? ';' : ',';
       
       onUpdateInventory((prev) => {
         const nextInventory = [...prev];
+        let addedCount = 0;
+        let updatedCount = 0;
+
         lines.slice(1).forEach((line) => {
           const parts = line.split(delimiter).map(p => p.replace(/^"|"$/g, '').trim());
-          if (parts.length >= 7) {
+          
+          // Check for at least 8 columns (A-H)
+          if (parts.length >= 8) {
             const barcode = parts[0];
+            const itemCode = parts[1];
+            const description = parts[2];
+            const price = parseFloat(parts[3].replace(/[^\d.]/g, '')) || 0;
+            const colorCode = parts[4];
+            const colorName = parts[5];
+            const size = parts[6];
+            // Column H is index 7
+            const stock = parseInt(parts[7].replace(/[^\d-]/g, '')) || 0;
+
             const existingIdx = nextInventory.findIndex(item => item.barcode === barcode);
+            
             const productData: Product = {
-              barcode, itemCode: parts[1], description: parts[2], price: parseFloat(parts[3].replace(/[^\d.]/g, '')) || 0,
-              colorCode: parts[4], colorName: parts[5], size: parts[6], stock: existingIdx !== -1 ? nextInventory[existingIdx].stock : 0
+              barcode,
+              itemCode,
+              description,
+              price,
+              colorCode,
+              colorName,
+              size,
+              stock
             };
-            if (existingIdx !== -1) nextInventory[existingIdx] = productData;
-            else nextInventory.push(productData);
+
+            if (existingIdx !== -1) {
+              nextInventory[existingIdx] = productData;
+              updatedCount++;
+            } else {
+              nextInventory.push(productData);
+              addedCount++;
+            }
           }
         });
-        showStatus(`המלאי עודכן בהצלחה לכל המכשירים`);
+        
+        showStatus(`ייבוא הושלם: ${addedCount} חדשים, ${updatedCount} עודכנו`);
         return nextInventory;
       });
-    } catch (err) { showStatus("שגיאה בטעינת הקובץ", 'error'); }
+    } catch (err) { 
+      console.error(err);
+      showStatus("שגיאה בטעינת הקובץ", 'error'); 
+    }
     e.target.value = '';
   };
 
   const exportToCsv = () => {
     if (inventory.length === 0) { showStatus("המלאי ריק", 'error'); return; }
     const headers = ["Barcode", "ItemCode", "Description", "Price", "ColorCode", "ColorName", "Size", "Stock"];
-    const rows = inventory.map(item => [item.barcode, item.itemCode, item.description, item.price, item.colorCode, item.colorName, item.size, item.stock]);
+    const rows = inventory.map(item => [
+      item.barcode, 
+      item.itemCode, 
+      item.description, 
+      item.price, 
+      item.colorCode, 
+      item.colorName, 
+      item.size, 
+      item.stock
+    ]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
