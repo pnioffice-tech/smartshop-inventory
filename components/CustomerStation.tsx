@@ -22,9 +22,11 @@ const CustomerStation: React.FC<CustomerStationProps> = ({ inventory }) => {
   useEffect(() => {
     let timer: number | undefined;
     if (error) {
-      timer = window.setTimeout(reset, 6000);
+      // Error screen stays for 5 seconds
+      timer = window.setTimeout(reset, 5000);
     } else if (scannedProduct) {
-      timer = window.setTimeout(reset, 60000); // 1 minute auto-reset
+      // Return to scanning screen after exactly 8 seconds as requested
+      timer = window.setTimeout(reset, 8000); 
     }
     return () => { if (timer) clearTimeout(timer); };
   }, [scannedProduct, error]);
@@ -37,7 +39,7 @@ const CustomerStation: React.FC<CustomerStationProps> = ({ inventory }) => {
       setIsScanning(false);
     } else {
       setScannedProduct(null);
-      setError(`הפריט עם הברקוד ${barcode} לא רשום במערכת.`);
+      setError(`הפריט ${barcode} לא נמצא במלאי`);
       setIsScanning(false);
     }
   };
@@ -53,90 +55,88 @@ const CustomerStation: React.FC<CustomerStationProps> = ({ inventory }) => {
     : [];
 
   return (
-    <div className="flex flex-col h-full bg-[#faf9f6]">
+    <div className="flex flex-col h-full bg-[#faf9f6] overflow-hidden">
       {isScanning ? (
-        <div className="p-10 flex flex-col items-center justify-center min-h-[85vh] animate-in fade-in duration-700">
-          <div className="text-center mb-16 max-w-4xl">
-            <h1 className="text-8xl md:text-9xl font-black text-slate-900 mb-10 tracking-tighter leading-tight">בדיקת מלאי</h1>
+        <div className="p-10 flex flex-col items-center justify-center h-full animate-in fade-in duration-700">
+          <div className="text-center mb-10 max-w-4xl">
+            <h1 className="text-8xl md:text-9xl font-black text-slate-900 mb-6 tracking-tighter leading-tight">בדיקת מלאי</h1>
             <p className="text-slate-600 font-extrabold text-4xl md:text-5xl tracking-wide leading-relaxed">
               הצמידו את הברקוד לסורק <br/>
-              כדי לראות מידות זמינות
+              כדי לראות מידות זמינות בחנות
             </p>
           </div>
           <Scanner onScan={handleScan} placeholder="סרקו ברקוד..." />
-          <div className="mt-32 grid grid-cols-2 gap-32 opacity-30 grayscale">
-            <div className="flex flex-col items-center gap-6"><ShoppingBag size={120}/><span className="text-3xl font-black uppercase tracking-widest">זמין כאן</span></div>
-            <div className="flex flex-col items-center gap-6"><Palette size={120}/><span className="text-3xl font-black uppercase tracking-widest">עוד צבעים</span></div>
+          <div className="mt-20 grid grid-cols-2 gap-24 opacity-20 grayscale">
+            <div className="flex flex-col items-center gap-4"><ShoppingBag size={100}/><span className="text-2xl font-black uppercase tracking-widest">מלאי עדכני</span></div>
+            <div className="flex flex-col items-center gap-4"><Palette size={100}/><span className="text-2xl font-black uppercase tracking-widest">צבעים נוספים</span></div>
           </div>
         </div>
       ) : (
-        <div className="flex flex-col h-full animate-in slide-in-from-bottom-12 duration-700 bg-white">
+        <div className="flex flex-col h-full animate-in slide-in-from-bottom-12 duration-700 bg-white overflow-hidden">
           {error ? (
-            <div className="flex flex-col items-center justify-center flex-1 p-16 text-center max-w-4xl mx-auto">
-              <div className="w-60 h-60 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-16 shadow-inner border-8 border-rose-100">
+            <div className="flex flex-col items-center justify-center h-full p-16 text-center max-w-4xl mx-auto">
+              <div className="w-60 h-60 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-12 shadow-inner border-8 border-rose-100">
                 <AlertCircle size={140} />
               </div>
               <h3 className="text-7xl font-black text-slate-900 mb-10">לא נמצא פריט</h3>
-              <p className="text-slate-500 font-bold text-4xl mb-24 leading-relaxed">{error}</p>
-              <button 
-                onClick={reset}
-                className="w-full py-16 bg-slate-900 text-white font-black text-5xl rounded-[4rem] shadow-2xl active:scale-95 transition-all uppercase tracking-widest"
-              >
-                נסי שוב
-              </button>
+              <p className="text-slate-500 font-bold text-4xl leading-relaxed">{error}</p>
             </div>
           ) : scannedProduct && (
-            <div className="flex flex-col h-full overflow-y-auto">
-              <div className="p-10 pb-12 max-w-[90rem] mx-auto w-full">
-                <button onClick={reset} className="flex items-center gap-8 text-[#6b0f24] font-black text-4xl mb-20 active:scale-95 transition-all hover:bg-slate-50 p-8 rounded-[3rem] w-fit border-4 border-[#6b0f24]/10 shadow-md">
-                  <ChevronLeft size={56} /> חזרה לבדיקה חדשה
-                </button>
-                
-                <div className="flex flex-col lg:flex-row justify-between items-center gap-20 mb-20 text-center lg:text-right">
-                  <div className="flex-1 space-y-10">
-                    <div className="flex items-center justify-center lg:justify-start gap-8 mb-6">
-                       <span className="text-3xl font-black text-[#6b0f24] bg-[#f7edf0] px-10 py-5 rounded-[2.5rem] uppercase tracking-widest border-4 border-[#6b0f24]/20 shadow-sm">דגם {scannedProduct.itemCode}</span>
-                       {scannedProduct.stock > 0 && (
-                         <div className="flex items-center gap-4 text-emerald-700 bg-emerald-50 px-10 py-5 rounded-[2.5rem] border-4 border-emerald-100">
-                           <CheckCircle2 size={40} />
-                           <span className="text-2xl font-black uppercase">קיים בחנות עכשיו</span>
-                         </div>
-                       )}
-                    </div>
-                    <h2 className="text-8xl md:text-[10rem] font-black text-slate-900 leading-[0.85] tracking-tighter">{scannedProduct.description}</h2>
-                    <p className="text-5xl md:text-6xl text-slate-500 font-black">צבע: <span className="text-[#6b0f24] border-b-[12px] border-[#6b0f24]/10 pb-2">{scannedProduct.colorName}</span></p>
+            <div className="flex flex-row h-full w-full overflow-hidden">
+              {/* Left Side: Product Info (40% width) */}
+              <div className="w-[40%] h-full p-12 flex flex-col justify-between border-l-4 border-slate-100 bg-white">
+                <div className="space-y-8">
+                  <div className="flex items-center gap-6">
+                    <span className="text-3xl font-black text-[#6b0f24] bg-[#f7edf0] px-8 py-4 rounded-[2rem] uppercase tracking-widest border-4 border-[#6b0f24]/10 shadow-sm">
+                      דגם {scannedProduct.itemCode}
+                    </span>
                   </div>
-                  <div className="bg-[#6b0f24] text-white p-20 rounded-[5rem] shadow-[0_50px_120px_rgba(107,15,36,0.4)] min-w-[380px] text-center border-[12px] border-white/5">
-                    <p className="text-3xl font-black opacity-70 mb-6 tracking-widest uppercase">מחיר</p>
-                    <p className="text-9xl md:text-[12rem] font-black">₪{scannedProduct.price}</p>
+                  
+                  <h2 className="text-7xl md:text-8xl xl:text-9xl font-black text-slate-900 leading-[0.9] tracking-tighter">
+                    {scannedProduct.description}
+                  </h2>
+                  
+                  <div className="space-y-4">
+                    <p className="text-4xl md:text-5xl text-slate-400 font-bold uppercase tracking-widest">צבע</p>
+                    <p className="text-6xl md:text-7xl text-[#6b0f24] font-black">{scannedProduct.colorName}</p>
                   </div>
+                </div>
+
+                <div className="bg-[#6b0f24] text-white p-12 rounded-[4rem] shadow-[0_40px_100px_rgba(107,15,36,0.3)] text-center border-[10px] border-white/5">
+                  <p className="text-2xl font-black opacity-60 mb-4 tracking-widest uppercase">מחיר</p>
+                  <p className="text-8xl md:text-[10rem] font-black leading-none">₪{scannedProduct.price}</p>
                 </div>
               </div>
 
-              <div className="flex-1 bg-[#fdfcfb] rounded-t-[8rem] p-16 md:p-24 shadow-[0_-50px_150px_rgba(0,0,0,0.15)] border-t-[6px] border-slate-100 max-w-[95rem] mx-auto w-full mt-12">
-                <div className="flex items-center justify-center lg:justify-between mb-24">
-                  <p className="text-4xl md:text-5xl font-black uppercase text-slate-400 flex items-center gap-8 tracking-[0.25em]">
-                    <Sparkles size={60} className="text-[#6b0f24]" />
-                    מידות זמינות בחנות ברגע זה
-                  </p>
+              {/* Right Side: Inventory Grid (60% width) */}
+              <div className="w-[60%] h-full bg-[#fdfcfb] p-12 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between mb-10 shrink-0">
+                  <div className="flex items-center gap-6">
+                    <Sparkles size={48} className="text-[#6b0f24]" />
+                    <p className="text-4xl font-black uppercase text-slate-400 tracking-[0.2em]">מידות זמינות בחנות</p>
+                  </div>
+                  <div className="text-xl font-black text-slate-400 bg-slate-100 px-6 py-2 rounded-full animate-pulse">
+                    חוזר לסריקה בעוד מספר שניות...
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-16 mb-24">
+                {/* Fixed Grid - Designed to fit without scroll */}
+                <div className="flex-1 grid grid-cols-2 gap-8 content-start overflow-hidden">
                   {sizesInCurrentColor.map((p, i) => (
-                    <div key={i} className={`p-16 rounded-[6rem] border-8 transition-all flex flex-col items-center justify-center text-center ${
+                    <div key={i} className={`p-8 rounded-[4rem] border-8 transition-all flex items-center justify-between px-12 ${
                       p.stock > 0 
-                      ? 'bg-white border-[#6b0f24]/20 shadow-[0_40px_100px_rgba(0,0,0,0.1)] scale-105 z-10' 
+                      ? 'bg-white border-[#6b0f24]/10 shadow-2xl' 
                       : 'bg-slate-50 border-slate-100 opacity-20 grayscale'
                     }`}>
-                      <div className="flex flex-col items-center gap-6 mb-12">
-                        <span className="text-5xl font-black text-slate-400 uppercase tracking-[0.3em] border-b-8 border-slate-100 pb-4">מידה</span>
-                        <span className="text-[12rem] md:text-[15rem] font-black text-slate-900 leading-none">{p.size}</span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-3xl font-black text-slate-400 uppercase tracking-widest">מידה</span>
+                        <span className="text-9xl font-black text-slate-900 leading-none">{p.size}</span>
                       </div>
                       
-                      <div className={`w-full py-10 px-12 rounded-[3.5rem] font-black text-6xl transition-all shadow-2xl border-4 ${
+                      <div className={`py-6 px-10 rounded-[2.5rem] font-black text-5xl transition-all shadow-xl border-4 ${
                         p.stock > 0 
                         ? 'bg-emerald-600 text-white border-emerald-400' 
-                        : 'bg-slate-300 text-slate-600'
+                        : 'bg-slate-200 text-slate-500'
                       }`}>
                         {p.stock > 0 ? `יש ${p.stock}` : 'אזל'}
                       </div>
@@ -144,29 +144,22 @@ const CustomerStation: React.FC<CustomerStationProps> = ({ inventory }) => {
                   ))}
                 </div>
 
+                {/* Other Colors - Bottom Fixed */}
                 {otherColors.length > 0 && (
-                  <div className="bg-white border-[12px] border-[#f7edf0] p-20 rounded-[6rem] flex flex-col lg:flex-row gap-16 mb-24 items-center shadow-2xl">
-                    <div className="bg-[#6b0f24] p-12 rounded-[3.5rem] text-white shadow-3xl shrink-0">
-                      <Palette size={100} />
+                  <div className="mt-10 bg-white border-8 border-[#f7edf0] p-8 rounded-[4rem] flex items-center gap-10 shadow-xl shrink-0">
+                    <div className="bg-[#6b0f24] p-6 rounded-[2rem] text-white shadow-2xl">
+                      <Palette size={50} />
                     </div>
-                    <div className="text-center lg:text-right space-y-4">
-                      <h4 className="text-4xl font-black text-[#6b0f24] uppercase tracking-widest flex items-center justify-center lg:justify-start gap-6">
-                        <CheckCircle2 size={50} /> קיים גם בצבעים הבאים:
+                    <div className="space-y-1">
+                      <h4 className="text-xl font-black text-[#6b0f24] uppercase tracking-widest flex items-center gap-3">
+                        קיים גם בצבעים:
                       </h4>
-                      <p className="text-6xl md:text-7xl font-black text-slate-800 leading-tight">
+                      <p className="text-4xl font-black text-slate-800 leading-tight">
                         {otherColors.join(' • ')}
                       </p>
                     </div>
                   </div>
                 )}
-
-                <button 
-                  onClick={reset}
-                  className="w-full py-20 bg-slate-900 text-white font-black text-7xl rounded-[5rem] flex items-center justify-center gap-12 shadow-[0_60px_120px_rgba(0,0,0,0.4)] active:scale-[0.98] hover:bg-black transition-all uppercase tracking-[0.3em] mb-20 border-[12px] border-white/10"
-                >
-                  בדיקת פריט חדש
-                  <ArrowRight size={80} strokeWidth={5} />
-                </button>
               </div>
             </div>
           )}
