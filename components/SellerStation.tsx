@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Product } from '../types';
 import Scanner from './Scanner';
 import { p2pSyncService } from '../services/p2pSyncService';
-import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Search, Package, Info, AlertCircle, CheckCircle, Smartphone, Link as LinkIcon, Copy } from 'lucide-react';
+import { PlusCircle, MinusCircle, List, Trash2, ArrowUpRight, ArrowDownRight, UploadCloud, Download, Search, Package, Info, AlertCircle, CheckCircle, Smartphone, Link as LinkIcon, Copy, Loader2 } from 'lucide-react';
 
 interface SellerStationProps {
   inventory: Product[];
@@ -16,19 +16,22 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
   const [activeTab, setActiveTab] = useState<'scan' | 'list' | 'settings'>('scan');
   const [mode, setMode] = useState<'load' | 'sell'>('load');
   const [logs, setLogs] = useState<{barcode: string, type: string, time: string}[]>([]);
-  const [statusMsg, setStatusMsg] = useState<{text: string, type: 'success' | 'error'} | null>(null);
+  const [statusMsg, setStatusMsg] = useState<{text: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [joinCode, setJoinCode] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
 
-  const showStatus = (text: string, type: 'success' | 'error' = 'success') => {
+  const showStatus = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setStatusMsg({ text, type });
-    setTimeout(() => setStatusMsg(null), 3500);
+    if (type !== 'info') {
+      setTimeout(() => setStatusMsg(null), 4000);
+    }
   };
 
   const handleScan = (barcode: string) => {
     onUpdateInventory((prevInventory) => {
       const existingIndex = prevInventory.findIndex(p => p.barcode === barcode);
       if (existingIndex === -1) {
-        showStatus(`ברקוד ${barcode} לא נמצא במלאי`, 'error');
+        showStatus(`הברקוד ${barcode} לא נמצא`, 'error');
         return prevInventory;
       }
       const updated = [...prevInventory];
@@ -37,23 +40,32 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       p.stock = Math.max(0, (p.stock || 0) + delta);
       updated[existingIndex] = p;
       setLogs(prev => [{ barcode, type: mode, time: new Date().toLocaleTimeString() }, ...prev.slice(0, 5)]);
-      showStatus(`${mode === 'load' ? 'הוספנו 1' : 'הפחתנו 1'} עבור ${barcode}`);
+      showStatus(`${mode === 'load' ? 'נוסף 1' : 'הופחת 1'} לברקוד ${barcode}`);
       return updated;
     });
   };
 
   const handleJoinDevice = () => {
-    if (!joinCode || joinCode === storeId) {
-      showStatus('קוד לא תקין', 'error');
+    const code = joinCode.trim();
+    if (!code || code === storeId) {
+      showStatus('הזיני קוד תקין של מכשיר אחר', 'error');
       return;
     }
-    showStatus('מנסה להתחבר...', 'success');
+    
+    setIsConnecting(true);
+    showStatus('מתחבר למכשיר...', 'info');
+    
     p2pSyncService.connectToPeer(
-      joinCode, 
+      code, 
       (data) => onUpdateInventory(data),
       (connected) => {
-        if (connected) showStatus('מכשירים חוברו וסונכרנו בהצלחה!');
-        else showStatus('החיבור נכשל - בדוק את הקוד', 'error');
+        setIsConnecting(false);
+        if (connected) {
+          showStatus('מכשירים חוברו וסונכרנו!');
+          setJoinCode('');
+        } else {
+          showStatus('לא הצלחנו להתחבר. בדקי שהקוד נכון והמכשיר השני דולק.', 'error');
+        }
       },
       () => inventory
     );
@@ -69,7 +81,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
         text = new TextDecoder('windows-1255').decode(buffer);
       }
       const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
-      if (lines.length < 2) { showStatus("קובץ לא תקין", 'error'); return; }
+      if (lines.length < 2) { showStatus("הקובץ ריק או לא תקין", 'error'); return; }
       const delimiter = lines[0].includes(';') ? ';' : ',';
       
       onUpdateInventory((prev) => {
@@ -87,7 +99,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
             else nextInventory.push(productData);
           }
         });
-        showStatus(`המלאי נטען וסונכרן בהצלחה`);
+        showStatus(`המלאי עודכן בהצלחה לכל המכשירים`);
         return nextInventory;
       });
     } catch (err) { showStatus("שגיאה בטעינת הקובץ", 'error'); }
@@ -95,7 +107,7 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
   };
 
   const exportToCsv = () => {
-    if (inventory.length === 0) { showStatus("אין נתונים לייצוא", 'error'); return; }
+    if (inventory.length === 0) { showStatus("המלאי ריק", 'error'); return; }
     const headers = ["Barcode", "ItemCode", "Description", "Price", "ColorCode", "ColorName", "Size", "Stock"];
     const rows = inventory.map(item => [item.barcode, item.itemCode, item.description, item.price, item.colorCode, item.colorName, item.size, item.stock]);
     const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
@@ -111,11 +123,11 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
     <div className="flex flex-col h-full bg-[#fdfcfb]">
       <div className="flex border-b-2 border-slate-200 bg-white sticky top-0 z-40">
         {(['scan', 'list', 'settings'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-8 text-lg font-black uppercase tracking-widest flex items-center justify-center gap-4 transition-all ${activeTab === tab ? 'text-[#6b0f24] border-b-8 border-[#6b0f24] bg-slate-50' : 'text-slate-400'}`}>
-            {tab === 'scan' && <Search size={28} />}
-            {tab === 'list' && <List size={28} />}
-            {tab === 'settings' && <Smartphone size={28} />}
-            {tab === 'scan' ? 'עדכון מלאי' : tab === 'list' ? 'רשימה' : 'חיבור'}
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`flex-1 py-8 text-xl font-black uppercase tracking-widest flex items-center justify-center gap-4 transition-all ${activeTab === tab ? 'text-[#6b0f24] border-b-8 border-[#6b0f24] bg-slate-50' : 'text-slate-400'}`}>
+            {tab === 'scan' && <Search size={32} />}
+            {tab === 'list' && <List size={32} />}
+            {tab === 'settings' && <Smartphone size={32} />}
+            {tab === 'scan' ? 'סריקה' : tab === 'list' ? 'רשימה' : 'חיבור'}
           </button>
         ))}
       </div>
@@ -123,68 +135,68 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       <div className="p-10 flex-1 overflow-y-auto pb-40">
         {activeTab === 'scan' && (
           <div className="space-y-12 animate-in fade-in duration-300 max-w-3xl mx-auto">
-            <div className="grid grid-cols-2 gap-6 bg-white p-3 rounded-[2.5rem] shadow-xl border-2 border-slate-100">
-              <button onClick={() => setMode('load')} className={`flex items-center justify-center gap-4 py-8 rounded-3xl font-black text-2xl transition-all ${mode === 'load' ? 'bg-[#6b0f24] text-white shadow-2xl scale-105' : 'text-slate-500 hover:bg-slate-50'}`}><PlusCircle size={32} /> קליטה</button>
-              <button onClick={() => setMode('sell')} className={`flex items-center justify-center gap-4 py-8 rounded-3xl font-black text-2xl transition-all ${mode === 'sell' ? 'bg-slate-900 text-white shadow-2xl scale-105' : 'text-slate-500 hover:bg-slate-50'}`}><MinusCircle size={32} /> מכירה</button>
+            <div className="grid grid-cols-2 gap-8 bg-white p-4 rounded-[3rem] shadow-xl border-2 border-slate-100">
+              <button onClick={() => setMode('load')} className={`flex items-center justify-center gap-6 py-10 rounded-[2.5rem] font-black text-3xl transition-all ${mode === 'load' ? 'bg-[#6b0f24] text-white shadow-2xl scale-105' : 'text-slate-500 hover:bg-slate-50'}`}><PlusCircle size={40} /> קליטה</button>
+              <button onClick={() => setMode('sell')} className={`flex items-center justify-center gap-6 py-10 rounded-[2.5rem] font-black text-3xl transition-all ${mode === 'sell' ? 'bg-slate-900 text-white shadow-2xl scale-105' : 'text-slate-500 hover:bg-slate-50'}`}><MinusCircle size={40} /> מכירה</button>
             </div>
             
-            <Scanner onScan={handleScan} placeholder="סרקי ברקוד לעדכון..." autoFocusEnabled={false} />
+            <Scanner onScan={handleScan} placeholder="סריקת ברקוד לעדכון..." autoFocusEnabled={false} />
             
-            <div className="bg-white rounded-[3rem] p-10 border-2 border-slate-200 shadow-sm">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">פעולות אחרונות</h3>
-                <div className="flex items-center gap-3"><div className="w-3 h-3 rounded-full bg-orange-400 animate-pulse" /><span className="text-xs font-black text-orange-600 uppercase">סנכרון פעיל</span></div>
+            <div className="bg-white rounded-[4rem] p-12 border-2 border-slate-200 shadow-sm">
+              <div className="flex justify-between items-center mb-10">
+                <h3 className="text-lg font-black text-slate-400 uppercase tracking-widest">פעולות אחרונות</h3>
+                <div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-orange-400 animate-pulse" /><span className="text-sm font-black text-orange-600 uppercase">סנכרון פעיל</span></div>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {logs.length > 0 ? logs.map((log, i) => (
-                  <div key={i} className="flex justify-between items-center p-6 bg-slate-50 rounded-3xl border-2 border-slate-100">
-                     <div className="flex items-center gap-6">
-                       <div className={`p-3 rounded-2xl ${log.type === 'load' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                         {log.type === 'load' ? <ArrowUpRight size={28}/> : <ArrowDownRight size={28}/>}
+                  <div key={i} className="flex justify-between items-center p-8 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100">
+                     <div className="flex items-center gap-8">
+                       <div className={`p-4 rounded-2xl ${log.type === 'load' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                         {log.type === 'load' ? <ArrowUpRight size={36}/> : <ArrowDownRight size={36}/>}
                        </div>
-                       <span className="text-3xl font-black font-mono text-slate-800 tracking-wider">{log.barcode}</span>
+                       <span className="text-4xl font-black font-mono text-slate-800 tracking-wider">{log.barcode}</span>
                      </div>
-                     <span className="text-sm font-bold text-slate-400">{log.time}</span>
+                     <span className="text-lg font-bold text-slate-400">{log.time}</span>
                   </div>
-                )) : <p className="text-center py-16 text-slate-300 text-2xl font-bold italic">ממתין לסריקה...</p>}
+                )) : <p className="text-center py-20 text-slate-300 text-3xl font-bold italic">ממתין לסריקה ראשונה...</p>}
               </div>
             </div>
           </div>
         )}
 
         {activeTab === 'list' && (
-          <div className="space-y-10 animate-in fade-in duration-300 max-w-5xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-               <label className="flex flex-col items-center justify-center gap-4 py-14 bg-white border-4 border-slate-100 rounded-[3rem] shadow-lg cursor-pointer active:scale-95 transition-all group hover:border-[#6b0f24]/30">
-                  <UploadCloud className="text-[#6b0f24] group-hover:scale-110 transition-transform" size={60} />
-                  <span className="text-lg font-black text-slate-700 uppercase tracking-widest">טעינת קובץ מלאי</span>
+          <div className="space-y-12 animate-in fade-in duration-300 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+               <label className="flex flex-col items-center justify-center gap-6 py-16 bg-white border-4 border-slate-100 rounded-[4rem] shadow-lg cursor-pointer active:scale-95 transition-all group hover:border-[#6b0f24]/30">
+                  <UploadCloud className="text-[#6b0f24] group-hover:scale-110 transition-transform" size={80} />
+                  <span className="text-2xl font-black text-slate-700 uppercase tracking-widest">טעינת מלאי (CSV)</span>
                   <input type="file" className="hidden" accept=".csv" onChange={handleCsvUpload} />
                </label>
-               <button onClick={exportToCsv} className="flex flex-col items-center justify-center gap-4 py-14 bg-white border-4 border-slate-100 rounded-[3rem] shadow-lg active:scale-95 transition-all group hover:border-emerald-200">
-                  <Download className="text-emerald-600 group-hover:scale-110 transition-transform" size={60} />
-                  <span className="text-lg font-black text-slate-700 uppercase tracking-widest">הורדת קובץ מלאי</span>
+               <button onClick={exportToCsv} className="flex flex-col items-center justify-center gap-6 py-16 bg-white border-4 border-slate-100 rounded-[4rem] shadow-lg active:scale-95 transition-all group hover:border-emerald-200">
+                  <Download className="text-emerald-600 group-hover:scale-110 transition-transform" size={80} />
+                  <span className="text-2xl font-black text-slate-700 uppercase tracking-widest">הורדת קובץ מלאי</span>
                </button>
             </div>
-            <div className="flex items-center justify-between px-6">
-              <h2 className="text-4xl font-black text-slate-900 tracking-tight">ניהול פריטים ({inventory.length})</h2>
-              <button onClick={() => { if(confirm('למחוק הכל?')) onUpdateInventory([]); }} className="text-sm font-black text-rose-400 hover:text-rose-600 uppercase tracking-widest flex items-center gap-3"><Trash2 size={20} /> איפוס מלאי</button>
+            <div className="flex items-center justify-between px-8">
+              <h2 className="text-5xl font-black text-slate-900 tracking-tight">ניהול פריטים ({inventory.length})</h2>
+              <button onClick={() => { if(confirm('למחוק הכל?')) onUpdateInventory([]); }} className="text-lg font-black text-rose-400 hover:text-rose-600 uppercase tracking-widest flex items-center gap-4"><Trash2 size={24} /> איפוס כל המלאי</button>
             </div>
-            <div className="space-y-6">
+            <div className="space-y-8">
               {inventory.length === 0 ? (
-                <div className="py-32 text-center bg-white rounded-[4rem] border-4 border-dashed border-slate-100">
-                  <Package size={80} className="mx-auto text-slate-100 mb-8" />
-                  <p className="text-slate-400 text-2xl font-bold">אין נתונים להצגה</p>
+                <div className="py-40 text-center bg-white rounded-[5rem] border-4 border-dashed border-slate-100">
+                  <Package size={120} className="mx-auto text-slate-100 mb-10" />
+                  <p className="text-slate-400 text-3xl font-bold">אין נתונים להצגה</p>
                 </div>
               ) : inventory.map((item) => (
-                <div key={item.barcode} className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-100 shadow-sm flex items-center justify-between group hover:border-[#6b0f24]/20 transition-all">
+                <div key={item.barcode} className="bg-white p-10 rounded-[3.5rem] border-2 border-slate-100 shadow-sm flex items-center justify-between group hover:border-[#6b0f24]/20 transition-all">
                   <div className="flex-1">
-                    <p className="font-black text-slate-900 text-3xl mb-2">{item.description}</p>
-                    <div className="flex flex-wrap items-center gap-5">
-                      <span className="bg-slate-100 text-slate-600 text-xs font-black px-4 py-1.5 rounded-xl uppercase border-2 border-slate-200">דגם {item.itemCode}</span>
-                      <span className="text-lg text-slate-500 font-bold">{item.colorName} • מידה {item.size} • {item.barcode}</span>
+                    <p className="font-black text-slate-900 text-4xl mb-3">{item.description}</p>
+                    <div className="flex flex-wrap items-center gap-6">
+                      <span className="bg-slate-100 text-slate-600 text-sm font-black px-6 py-2.5 rounded-2xl uppercase border-2 border-slate-200">דגם {item.itemCode}</span>
+                      <span className="text-2xl text-slate-500 font-bold">{item.colorName} • מידה {item.size} • {item.barcode}</span>
                     </div>
                   </div>
-                  <div className={`min-w-[100px] text-center px-6 py-6 rounded-3xl font-black text-4xl transition-all shadow-inner border-4 ${item.stock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
+                  <div className={`min-w-[120px] text-center px-8 py-8 rounded-[2.5rem] font-black text-5xl transition-all shadow-inner border-4 ${item.stock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-300 border-slate-100'}`}>
                     {item.stock}
                   </div>
                 </div>
@@ -194,39 +206,43 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-10 animate-in fade-in duration-300 max-w-3xl mx-auto">
-            <div className="bg-white p-14 rounded-[4rem] border-4 border-slate-100 text-center shadow-2xl">
-              <LinkIcon size={80} className="mx-auto text-[#6b0f24] mb-10" />
-              <h3 className="text-4xl font-black text-slate-900 mb-4">חיבור מכשיר נוסף</h3>
-              <p className="text-slate-500 text-xl font-bold mb-14 tracking-wide">הזיני את הקוד ממכשיר אחר כדי לסנכרן ביניהם</p>
+          <div className="space-y-12 animate-in fade-in duration-300 max-w-4xl mx-auto">
+            <div className="bg-white p-16 rounded-[5rem] border-4 border-slate-100 text-center shadow-2xl">
+              <LinkIcon size={100} className="mx-auto text-[#6b0f24] mb-12" />
+              <h3 className="text-5xl font-black text-slate-900 mb-6">חיבור מכשירים</h3>
+              <p className="text-slate-500 text-2xl font-bold mb-16 tracking-wide">הזיני את הקוד שמופיע בטאבלט השני כדי לסנכרן ביניהם</p>
               
-              <div className="bg-slate-50 p-10 rounded-[3rem] border-4 border-slate-200 mb-14 group relative">
-                <span className="text-xs font-black text-slate-400 block mb-6 uppercase tracking-widest">הקוד של המכשיר הזה:</span>
-                <div className="flex items-center justify-center gap-6">
-                   <span className="text-5xl font-black text-[#6b0f24] font-mono tracking-widest uppercase">{storeId}</span>
-                   <button onClick={() => { navigator.clipboard.writeText(storeId || ''); showStatus('הקוד הועתק'); }} className="p-4 bg-white rounded-2xl text-slate-400 hover:text-[#6b0f24] transition-all shadow-md"><Copy size={32} /></button>
+              <div className="bg-slate-50 p-12 rounded-[4rem] border-4 border-slate-200 mb-16 group relative">
+                <span className="text-sm font-black text-slate-400 block mb-8 uppercase tracking-widest">הקוד של המכשיר הזה:</span>
+                <div className="flex items-center justify-center gap-8">
+                   <span className="text-6xl font-black text-[#6b0f24] font-mono tracking-[0.2em] uppercase">{storeId}</span>
+                   <button onClick={() => { navigator.clipboard.writeText(storeId || ''); showStatus('הקוד הועתק ללוח'); }} className="p-5 bg-white rounded-3xl text-slate-400 hover:text-[#6b0f24] transition-all shadow-md"><Copy size={40} /></button>
                 </div>
               </div>
 
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <input 
                   type="text" 
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="הזיני קוד של טאבלט אחר..." 
-                  className="w-full p-8 bg-slate-50 border-4 border-slate-100 rounded-[2.5rem] text-center font-black text-3xl tracking-widest uppercase focus:border-[#6b0f24] transition-all text-slate-800 shadow-inner"
+                  placeholder="הזיני קוד ממכשיר אחר..." 
+                  className="w-full p-10 bg-slate-50 border-4 border-slate-100 rounded-[3rem] text-center font-black text-4xl tracking-[0.1em] uppercase focus:border-[#6b0f24] transition-all text-slate-800 shadow-inner"
                 />
-                <button onClick={handleJoinDevice} className="w-full py-10 bg-slate-900 text-white rounded-[2.5rem] font-black text-2xl shadow-2xl flex items-center justify-center gap-5 active:scale-95 transition-all uppercase tracking-widest">
-                  <Smartphone size={36} />
-                  חברי מכשירים עכשיו
+                <button 
+                  onClick={handleJoinDevice} 
+                  disabled={isConnecting}
+                  className={`w-full py-12 rounded-[3rem] font-black text-3xl shadow-2xl flex items-center justify-center gap-6 active:scale-95 transition-all uppercase tracking-widest ${isConnecting ? 'bg-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-black'}`}
+                >
+                  {isConnecting ? <Loader2 className="animate-spin" size={44} /> : <Smartphone size={44} />}
+                  {isConnecting ? 'מתחבר...' : 'חברי מכשירים'}
                 </button>
               </div>
             </div>
 
-            <div className="bg-[#6b0f24]/5 border-4 border-[#6b0f24]/10 p-10 rounded-[3.5rem] flex gap-8 items-center">
-              <Info className="text-[#6b0f24] shrink-0" size={40} />
-              <p className="text-lg font-bold text-[#6b0f24]/80 leading-relaxed">
-                שימי לב: החיבור פועל בתוך הרשת המקומית. כל עדכון מלאי שתבצעי כאן יופיע מיידית גם במסך של הלקוחה וגם בטאבלטים אחרים.
+            <div className="bg-[#6b0f24]/5 border-4 border-[#6b0f24]/10 p-12 rounded-[4rem] flex gap-10 items-center">
+              <Info className="text-[#6b0f24] shrink-0" size={56} />
+              <p className="text-xl font-bold text-[#6b0f24]/80 leading-relaxed">
+                סנכרון חכם: כל פריט שיימכר או ייקלט כאן יתעדכן מיידית בכל שאר המסכים בחנות.
               </p>
             </div>
           </div>
@@ -234,9 +250,15 @@ const SellerStation: React.FC<SellerStationProps> = ({ inventory, onUpdateInvent
       </div>
 
       {statusMsg && (
-        <div className={`fixed bottom-12 left-10 right-10 z-50 px-12 py-8 rounded-[3rem] shadow-[0_40px_100px_rgba(0,0,0,0.3)] flex items-center justify-center gap-6 animate-in slide-in-from-bottom-10 duration-300 ${statusMsg.type === 'success' ? 'bg-slate-900 text-white border-4 border-white/10' : 'bg-rose-800 text-white border-4 border-white/10'}`}>
-          {statusMsg.type === 'success' ? <CheckCircle size={36} className="text-emerald-400" /> : <AlertCircle size={36} />}
-          <span className="font-black text-2xl tracking-wide">{statusMsg.text}</span>
+        <div className={`fixed bottom-12 left-10 right-10 z-[110] px-14 py-10 rounded-[4rem] shadow-[0_60px_150px_rgba(0,0,0,0.4)] flex items-center justify-center gap-8 animate-in slide-in-from-bottom-12 duration-300 ${
+          statusMsg.type === 'success' ? 'bg-slate-900 text-white' : 
+          statusMsg.type === 'error' ? 'bg-rose-800 text-white' : 
+          'bg-[#6b0f24] text-white'
+        } border-4 border-white/10`}>
+          {statusMsg.type === 'success' && <CheckCircle size={44} className="text-emerald-400" />}
+          {statusMsg.type === 'error' && <AlertCircle size={44} />}
+          {statusMsg.type === 'info' && <Loader2 size={44} className="animate-spin" />}
+          <span className="font-black text-3xl tracking-wide">{statusMsg.text}</span>
         </div>
       )}
     </div>
