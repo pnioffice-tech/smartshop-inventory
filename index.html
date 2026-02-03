@@ -3,7 +3,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Discreet - מערכת מלאי חכמה</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,28 +13,28 @@
     body {
       font-family: 'Assistant', sans-serif;
       background-color: #faf9f6;
-      display: flex;
-      justify-content: center;
-      min-height: 100vh;
       margin: 0;
+      overflow: hidden; /* Prevent body scrolling */
+      height: 100vh;
+      width: 100vw;
+      position: fixed; /* Extra insurance for iOS */
     }
     #root {
       width: 100%;
-      height: 100vh;
+      height: 100%;
     }
     input:focus {
       outline: none;
     }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #6b0f24; border-radius: 10px; opacity: 0.3; }
+    .custom-scroll::-webkit-scrollbar { width: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #6b0f24; border-radius: 10px; opacity: 0.3; }
     
     @keyframes pulse-subtle {
       0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.1); opacity: 0.7; }
+      50% { transform: scale(1.05); opacity: 0.8; }
       100% { transform: scale(1); opacity: 1; }
     }
-    .animate-pulse-subtle { animation: pulse-subtle 2s infinite ease-in-out; }
   </style>
 <script type="importmap">
 {
